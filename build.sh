@@ -31,6 +31,8 @@ mirror_url() {
   local url=$1
   if [[ "$url" =~ ^https?://ftp.gnu.org/gnu/ ]]; then
     echo "${url/https:\/\/ftp.gnu.org\/gnu\//https://mirrors.tuna.tsinghua.edu.cn/gnu/}"
+  elif [[ "$url" =~ ^https?://musl.libc.org/releases/ ]]; then
+    echo "${url/https:\/\/musl.libc.org\/releases\//https://mirrors.tuna.tsinghua.edu.cn/musl/releases/}"
   else
     echo "$url"
   fi
@@ -87,85 +89,81 @@ build_binutils() {
 
   touch "$mark_file"
   log "Binutils build complete."
-    local mode=${1:-full}
-    local mark_file=$BUILD_ROOT/.gcc_built_$GCC_VERSION
-    if [ "$mode" = "full" ] && [ -f "$mark_file" ]; then
-      log "GCC $GCC_VERSION already built, skipping."
-      return
-    fi
+}
 
-    log "Building GCC $GCC_VERSION ($mode)..."
-    mkdir -p "$BUILD_ROOT/gcc-build"
-    cd "$BUILD_ROOT/gcc-build"
+build_musl() {
+  local mark_file=$BUILD_ROOT/.musl_built_$MUSL_VERSION
+  if [ -f "$mark_file" ]; then
+    log "musl $MUSL_VERSION already built, skipping."
+    return
+  fi
 
-    local old_path=$PATH
-    export PATH="$INSTALL_PREFIX/bin:$PATH"
+  log "Building musl $MUSL_VERSION..."
+  mkdir -p "$BUILD_ROOT/musl-build"
+  cd "$BUILD_ROOT/musl-build"
 
-    if [ ! -f "config.status" ]; then
-      if ! "$SRC_ROOT/gcc-$GCC_VERSION/configure" \
-        --prefix="$INSTALL_PREFIX" \
-        --target="$TARGET" \
-        --with-arch="$ARCH" \
-        --with-abi="$ABI" \
-        --disable-multilib \
-        --disable-threads \
-        --disable-libmudflap \
-        --disable-libitm \
-        --enable-languages=c,c++ \
-        --enable-shared \
-        --enable-libssp \
-        --enable-libgomp \
-        --enable-poison-system-directories \
-        --enable-symvers=gnu \
-        --with-sysroot="$INSTALL_PREFIX/$TARGET/sysroot" \
-        --with-headers="$INSTALL_PREFIX/$TARGET/sysroot/usr/include" \
-        --with-build-sysroot="$INSTALL_PREFIX/$TARGET/sysroot" \
-        --with-gmp="$SRC_ROOT/gmp-$GMP_VERSION" \
-        --with-mpfr="$SRC_ROOT/mpfr-$MPFR_VERSION" \
-        --with-mpc="$SRC_ROOT/mpc-$MPC_VERSION" \
-        --with-isl="$SRC_ROOT/isl-$ISL_VERSION" \
-        --with-gnu-as \
-        --with-gnu-ld \
-        >"$LOG_DIR/gcc_configure.log" 2>&1; then
-        log "ERROR: GCC configure failed"
-        exit 1
-      fi
-    fi
+  local old_path=$PATH
+  export PATH="$INSTALL_PREFIX/bin:$PATH"
+  if ! CC="$TARGET-gcc" AR="$TARGET-ar" RANLIB="$TARGET-ranlib" \
+    "$SRC_ROOT/musl-$MUSL_VERSION/configure" --prefix="$INSTALL_PREFIX/$TARGET/sysroot/usr" --host="$TARGET" \
+    >"$LOG_DIR/musl_configure.log" 2>&1; then
+    log "ERROR: musl configure failed"
+    exit 1
+  fi
 
-    if [ "$mode" = "bootstrap" ]; then
-      if ! make -j"$(get_nproc)" all-gcc >"$LOG_DIR/gcc_all-gcc.log" 2>&1; then
-        log "ERROR: GCC all-gcc build failed"
-        exit 1
-      fi
-      if ! make install-gcc >"$LOG_DIR/gcc_install-gcc.log" 2>&1; then
-        log "ERROR: GCC install-gcc failed"
-        exit 1
-      fi
-      if ! make -j"$(get_nproc)" all-target-libgcc >"$LOG_DIR/gcc_all-target-libgcc.log" 2>&1; then
-        log "ERROR: GCC all-target-libgcc build failed"
-        exit 1
-      fi
-      if ! make install-target-libgcc >"$LOG_DIR/gcc_install-target-libgcc.log" 2>&1; then
-        log "ERROR: GCC install-target-libgcc failed"
-        exit 1
-      fi
-      export PATH=$old_path
-      log "GCC bootstrap build complete."
-      return
-    fi
+  if ! make -j"$(get_nproc)" >"$LOG_DIR/musl_make.log" 2>&1; then
+    log "ERROR: musl make failed"
+    exit 1
+  fi
 
-    # 完整构建
-    if ! make -j"$(get_nproc)" all-target-libstdc++-v3 >"$LOG_DIR/gcc_all-target_libstdc++.log" 2>&1; then
-      log "ERROR: GCC all-target-libstdc++-v3 build failed"
-      exit 1
-    fi
-    if ! make install-target-libstdc++-v3 >"$LOG_DIR/gcc_install-target-libstdc++.log" 2>&1; then
-      log "ERROR: GCC install-target-libstdc++-v3 failed"
-      exit 1
-    fi
-    export PATH=$old_path
-    touch "$mark_file"
-    log "GCC build complete."
+  if ! make install >"$LOG_DIR/musl_install.log" 2>&1; then
+    log "ERROR: musl install failed"
+    exit 1
+  fi
+  export PATH=$old_path
+
+  touch "$mark_file"
+  log "musl build complete."
+}
+
+build_gcc() {
+  local mark_file=$BUILD_ROOT/.gcc_built_$GCC_VERSION
+  if [ -f "$mark_file" ]; then
+    log "GCC $GCC_VERSION already built, skipping."
+    return
+  fi
+
+  log "Building GCC $GCC_VERSION..."
+  mkdir -p "$BUILD_ROOT/gcc-build"
+  cd "$BUILD_ROOT/gcc-build"
+
+  local old_path=$PATH
+  export PATH="$INSTALL_PREFIX/bin:$PATH"
+
+  if ! "$SRC_ROOT/gcc-$GCC_VERSION/configure" \
+    --prefix="$INSTALL_PREFIX" \
+    --target="$TARGET" \
+    --with-arch="$ARCH" \
+    --with-abi="$ABI" \
+    --disable-multilib \
+    --disable-threads \
+    --disable-libmudflap \
+    --disable-libitm \
+    --enable-languages=c,c++ \
+    --enable-shared \
+    --enable-libssp \
+    --enable-libgomp \
+    --enable-poison-system-directories \
+    --enable-symvers=gnu \
+    --with-sysroot="$INSTALL_PREFIX/$TARGET/sysroot" \
+    --with-headers="$INSTALL_PREFIX/$TARGET/sysroot/usr/include" \
+    --with-build-sysroot="$INSTALL_PREFIX/$TARGET/sysroot" \
+    --with-gmp="$SRC_ROOT/gmp-$GMP_VERSION" \
+    --with-mpfr="$SRC_ROOT/mpfr-$MPFR_VERSION" \
+    --with-mpc="$SRC_ROOT/mpc-$MPC_VERSION" \
+    --with-isl="$SRC_ROOT/isl-$ISL_VERSION" \
+    --with-gnu-as \
+    --with-gnu-ld \
     >"$LOG_DIR/gcc_configure.log" 2>&1; then
     log "ERROR: GCC configure failed"
     exit 1
@@ -216,9 +214,8 @@ main() {
   download_and_extract "https://libisl.sourceforge.io/isl-$ISL_VERSION.tar.gz" "$SRC_ROOT/isl-$ISL_VERSION"
 
   build_binutils
-  build_gcc bootstrap   # 只编译 gcc 和 libgcc
-  build_musl            # 用交叉 gcc 编译 musl
-  build_gcc full        # 完整编译 gcc（libstdc++等）
+  build_musl
+  build_gcc
 
   log "Build complete. Toolchain installed at $INSTALL_PREFIX"
 }
