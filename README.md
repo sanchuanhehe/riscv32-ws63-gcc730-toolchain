@@ -44,7 +44,7 @@
 - **用户**: root
 
 ### 构建工具版本
-- **GCC (Host)**: gcc (Ubuntu 13.2.0-23ubuntu4) 13.2.0
+- **GCC (Host)**: gcc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0
 - **Make**: GNU Make 4.3
 - **m4**: m4 (GNU M4) 1.4.19
 - **Binutils**: GNU binutils 2.42
