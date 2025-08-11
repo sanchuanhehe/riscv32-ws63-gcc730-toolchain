@@ -92,15 +92,15 @@ install_dependencies() {
     
     # 检测包管理器并安装
     if command -v apt-get >/dev/null 2>&1; then
-      # Debian/Ubuntu
+      # Debian/Ubuntu - 包含 GMP 开发库用于 GDB
       apt-get update
-      apt-get install -y $missing_tools build-essential
+      apt-get install -y $missing_tools build-essential libgmp-dev
     elif command -v yum >/dev/null 2>&1; then
       # RHEL/CentOS
-      yum install -y $missing_tools gcc gcc-c++ make
+      yum install -y $missing_tools gcc gcc-c++ make gmp-devel
     elif command -v dnf >/dev/null 2>&1; then
       # Fedora
-      dnf install -y $missing_tools gcc gcc-c++ make
+      dnf install -y $missing_tools gcc gcc-c++ make gmp-devel
     elif command -v apk >/dev/null 2>&1; then
       # Alpine
       apk add --no-cache $missing_tools build-base
