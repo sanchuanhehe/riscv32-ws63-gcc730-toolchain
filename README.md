@@ -41,6 +41,7 @@
 - **CPU**: Intel Xeon Platinum 8378C
 - **内存**: 22.9GB
 - **Shell**: bash 5.2.21
+- **用户**: root
 
 ### 构建工具版本
 - **GCC (Host)**: gcc (Ubuntu 13.2.0-23ubuntu4) 13.2.0
