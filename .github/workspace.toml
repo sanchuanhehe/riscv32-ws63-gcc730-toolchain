@@ -1,0 +1,107 @@
+# 工作区配置文件
+# 记录当前工作区的状态和配置信息
+
+[workspace]
+name = "gcc7.3-riscv32-toolchain"
+type = "cross-compiler-build"
+created = "2025-08-12"
+updated = "2025-08-12"
+
+[target]
+architecture = "riscv32"
+abi = "ilp32f" 
+isa = "rv32imfc"
+triplet = "riscv32-linux-musl"
+libc = "musl"
+
+[versions]
+gcc = "7.3.0"
+binutils = "2.30"
+musl = "1.2.2"
+gmp = "6.1.2"
+mpfr = "3.1.6"
+mpc = "1.0.3"
+isl = "0.18"
+
+[paths]
+root_dir = "/root/gcc7.3"
+src_dir = "/root/gcc7.3/src"
+build_dir = "/root/gcc7.3/build_riscv32"
+install_dir = "/root/gcc7.3/build_riscv32/install"
+host_libs_dir = "/root/gcc7.3/build_riscv32/host-libs"
+logs_dir = "/root/gcc7.3/build_riscv32/logs"
+
+[urls]
+gcc_url = "https://ftp.gnu.org/gnu/gcc/gcc-7.3.0/gcc-7.3.0.tar.gz"
+binutils_url = "https://ftp.gnu.org/gnu/binutils/binutils-2.30.tar.gz"
+musl_url = "https://musl.libc.org/releases/musl-1.2.2.tar.gz"
+gmp_url = "https://ftp.gnu.org/gnu/gmp/gmp-6.1.2.tar.bz2"
+mpfr_url = "https://ftp.gnu.org/gnu/mpfr/mpfr-3.1.6.tar.gz"
+mpc_url = "https://ftp.gnu.org/gnu/mpc/mpc-1.0.3.tar.gz"
+isl_url = "https://libisl.sourceforge.io/isl-0.18.tar.gz"
+
+[mirrors]
+gnu_mirror = "https://mirrors.tuna.tsinghua.edu.cn/gnu/"
+musl_mirror = "https://mirrors.tuna.tsinghua.edu.cn/musl/releases/"
+
+[build_status]
+binutils = "completed"
+gcc_deps = "in_progress"
+gcc_stage1 = "pending"
+musl = "pending"
+gcc_stage2 = "pending"
+
+[system_dependencies]
+required = ["m4", "make", "gcc", "g++", "wget", "tar", "gzip", "bzip2", "patch"]
+package_manager = "apt"
+
+[build_flags]
+# GCC Stage 1 配置
+gcc_stage1_configure_flags = [
+    "--prefix=/root/gcc7.3/build_riscv32/install",
+    "--target=riscv32-linux-musl",
+    "--with-arch=rv32imfc",
+    "--with-abi=ilp32f",
+    "--disable-multilib",
+    "--disable-threads",
+    "--disable-shared",
+    "--enable-languages=c",
+    "--without-headers",
+    "--with-newlib"
+]
+
+# GCC Stage 2 配置
+gcc_stage2_configure_flags = [
+    "--prefix=/root/gcc7.3/build_riscv32/install",
+    "--target=riscv32-linux-musl",
+    "--with-arch=rv32imfc",
+    "--with-abi=ilp32f",
+    "--disable-multilib",
+    "--enable-threads=posix",
+    "--enable-shared",
+    "--enable-languages=c,c++",
+    "--with-sysroot=/root/gcc7.3/build_riscv32/install/riscv32-linux-musl/sysroot"
+]
+
+# musl 配置
+musl_configure_flags = [
+    "--prefix=/root/gcc7.3/build_riscv32/install/riscv32-linux-musl/sysroot/usr",
+    "--host=riscv32-linux-musl"
+]
+
+[environment]
+PATH_additions = "/root/gcc7.3/build_riscv32/install/bin"
+CC_stage1 = "gcc"
+AR_stage1 = "ar"
+RANLIB_stage1 = "ranlib"
+CC_musl = "riscv32-linux-musl-gcc"
+AR_musl = "riscv32-linux-musl-ar"
+RANLIB_musl = "riscv32-linux-musl-ranlib"
+
+[parallel]
+make_jobs = "auto"  # 使用 nproc 的结果
+
+[logs]
+format = "timestamped"
+directory_pattern = "YYYYMMDD_HHMMSS"
+current_log_dir = "20250812_051813"

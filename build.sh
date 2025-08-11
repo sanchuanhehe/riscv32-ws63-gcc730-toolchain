@@ -27,6 +27,79 @@ log() {
   echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"
 }
 
+# 安装必要的系统工具
+install_dependencies() {
+  log "Installing system dependencies..."
+  
+  # 检查并安装必要的工具
+  local missing_tools=""
+  
+  # 检查 m4
+  if ! command -v m4 >/dev/null 2>&1; then
+    missing_tools="$missing_tools m4"
+  fi
+  
+  # 检查 autoconf
+  if ! command -v autoconf >/dev/null 2>&1; then
+    missing_tools="$missing_tools autoconf"
+  fi
+  
+  # 检查 automake
+  if ! command -v automake >/dev/null 2>&1; then
+    missing_tools="$missing_tools automake"
+  fi
+  
+  # 检查 libtool
+  if ! command -v libtool >/dev/null 2>&1; then
+    missing_tools="$missing_tools libtool"
+  fi
+  
+  # 检查 pkg-config
+  if ! command -v pkg-config >/dev/null 2>&1; then
+    missing_tools="$missing_tools pkg-config"
+  fi
+  
+  # 检查 bison
+  if ! command -v bison >/dev/null 2>&1; then
+    missing_tools="$missing_tools bison"
+  fi
+  
+  # 检查 flex
+  if ! command -v flex >/dev/null 2>&1; then
+    missing_tools="$missing_tools flex"
+  fi
+  
+  # 检查 texinfo
+  if ! command -v makeinfo >/dev/null 2>&1; then
+    missing_tools="$missing_tools texinfo"
+  fi
+  
+  if [ -n "$missing_tools" ]; then
+    log "Installing missing tools:$missing_tools"
+    
+    # 检测包管理器并安装
+    if command -v apt-get >/dev/null 2>&1; then
+      # Debian/Ubuntu
+      apt-get update
+      apt-get install -y $missing_tools build-essential
+    elif command -v yum >/dev/null 2>&1; then
+      # RHEL/CentOS
+      yum install -y $missing_tools gcc gcc-c++ make
+    elif command -v dnf >/dev/null 2>&1; then
+      # Fedora
+      dnf install -y $missing_tools gcc gcc-c++ make
+    elif command -v apk >/dev/null 2>&1; then
+      # Alpine
+      apk add --no-cache $missing_tools build-base
+    else
+      log "ERROR: Unknown package manager. Please install these tools manually:$missing_tools"
+      exit 1
+    fi
+  else
+    log "All required tools are already installed."
+  fi
+}
+
 mirror_url() {
   local url=$1
   if [[ "$url" =~ ^https?://ftp.gnu.org/gnu/ ]]; then
@@ -126,14 +199,61 @@ build_musl() {
   log "musl build complete."
 }
 
-build_gcc() {
-  local mark_file=$BUILD_ROOT/.gcc_built_$GCC_VERSION
+# 构建 GMP, MPFR, MPC, ISL 依赖库
+build_gcc_deps() {
+  local mark_file=$BUILD_ROOT/.gcc_deps_built
   if [ -f "$mark_file" ]; then
-    log "GCC $GCC_VERSION already built, skipping."
+    log "GCC dependencies already built, skipping."
     return
   fi
 
-  log "Building GCC $GCC_VERSION..."
+  log "Building GCC dependencies..."
+  
+  # 构建 GMP
+  log "Building GMP $GMP_VERSION..."
+  mkdir -p "$BUILD_ROOT/gmp-build"
+  cd "$BUILD_ROOT/gmp-build"
+  "$SRC_ROOT/gmp-$GMP_VERSION/configure" --prefix="$BUILD_ROOT/host-libs" --disable-shared >"$LOG_DIR/gmp_configure.log" 2>&1
+  make -j"$(get_nproc)" >"$LOG_DIR/gmp_make.log" 2>&1
+  make install >"$LOG_DIR/gmp_install.log" 2>&1
+
+  # 构建 MPFR
+  log "Building MPFR $MPFR_VERSION..."
+  mkdir -p "$BUILD_ROOT/mpfr-build"
+  cd "$BUILD_ROOT/mpfr-build"
+  "$SRC_ROOT/mpfr-$MPFR_VERSION/configure" --prefix="$BUILD_ROOT/host-libs" --with-gmp="$BUILD_ROOT/host-libs" --disable-shared >"$LOG_DIR/mpfr_configure.log" 2>&1
+  make -j"$(get_nproc)" >"$LOG_DIR/mpfr_make.log" 2>&1
+  make install >"$LOG_DIR/mpfr_install.log" 2>&1
+
+  # 构建 MPC
+  log "Building MPC $MPC_VERSION..."
+  mkdir -p "$BUILD_ROOT/mpc-build"
+  cd "$BUILD_ROOT/mpc-build"
+  "$SRC_ROOT/mpc-$MPC_VERSION/configure" --prefix="$BUILD_ROOT/host-libs" --with-gmp="$BUILD_ROOT/host-libs" --with-mpfr="$BUILD_ROOT/host-libs" --disable-shared >"$LOG_DIR/mpc_configure.log" 2>&1
+  make -j"$(get_nproc)" >"$LOG_DIR/mpc_make.log" 2>&1
+  make install >"$LOG_DIR/mpc_install.log" 2>&1
+
+  # 构建 ISL
+  log "Building ISL $ISL_VERSION..."
+  mkdir -p "$BUILD_ROOT/isl-build"
+  cd "$BUILD_ROOT/isl-build"
+  "$SRC_ROOT/isl-$ISL_VERSION/configure" --prefix="$BUILD_ROOT/host-libs" --with-gmp-prefix="$BUILD_ROOT/host-libs" --disable-shared >"$LOG_DIR/isl_configure.log" 2>&1
+  make -j"$(get_nproc)" >"$LOG_DIR/isl_make.log" 2>&1
+  make install >"$LOG_DIR/isl_install.log" 2>&1
+
+  touch "$mark_file"
+  log "GCC dependencies build complete."
+}
+
+# 构建 GCC 第一阶段（仅编译器）
+build_gcc_stage1() {
+  local mark_file=$BUILD_ROOT/.gcc_stage1_built_$GCC_VERSION
+  if [ -f "$mark_file" ]; then
+    log "GCC stage 1 already built, skipping."
+    return
+  fi
+
+  log "Building GCC stage 1..."
   mkdir -p "$BUILD_ROOT/gcc-build"
   cd "$BUILD_ROOT/gcc-build"
 
@@ -147,64 +267,114 @@ build_gcc() {
     --with-abi="$ABI" \
     --disable-multilib \
     --disable-threads \
+    --disable-shared \
     --disable-libmudflap \
     --disable-libitm \
-    --enable-languages=c,c++ \
-    --enable-shared \
-    --enable-libssp \
-    --enable-libgomp \
-    --enable-poison-system-directories \
-    --enable-symvers=gnu \
-    --with-sysroot="$INSTALL_PREFIX/$TARGET/sysroot" \
-    --with-headers="$INSTALL_PREFIX/$TARGET/sysroot/usr/include" \
-    --with-build-sysroot="$INSTALL_PREFIX/$TARGET/sysroot" \
-    --with-gmp="$SRC_ROOT/gmp-$GMP_VERSION" \
-    --with-mpfr="$SRC_ROOT/mpfr-$MPFR_VERSION" \
-    --with-mpc="$SRC_ROOT/mpc-$MPC_VERSION" \
-    --with-isl="$SRC_ROOT/isl-$ISL_VERSION" \
+    --disable-libssp \
+    --disable-libgomp \
+    --disable-libquadmath \
+    --disable-decimal-float \
+    --disable-fixed-point \
+    --enable-languages=c \
+    --without-headers \
+    --with-newlib \
+    --with-gmp="$BUILD_ROOT/host-libs" \
+    --with-mpfr="$BUILD_ROOT/host-libs" \
+    --with-mpc="$BUILD_ROOT/host-libs" \
+    --with-isl="$BUILD_ROOT/host-libs" \
     --with-gnu-as \
     --with-gnu-ld \
-    >"$LOG_DIR/gcc_configure.log" 2>&1; then
-    log "ERROR: GCC configure failed"
+    >"$LOG_DIR/gcc_stage1_configure.log" 2>&1; then
+    log "ERROR: GCC stage 1 configure failed"
     exit 1
   fi
 
-  if ! make -j"$(get_nproc)" all-gcc >"$LOG_DIR/gcc_all-gcc.log" 2>&1; then
-    log "ERROR: GCC all-gcc build failed"
+  if ! make -j"$(get_nproc)" all-gcc >"$LOG_DIR/gcc_stage1_all-gcc.log" 2>&1; then
+    log "ERROR: GCC stage 1 all-gcc build failed"
     exit 1
   fi
 
-  if ! make install-gcc >"$LOG_DIR/gcc_install-gcc.log" 2>&1; then
-    log "ERROR: GCC install-gcc failed"
+  if ! make -j"$(get_nproc)" all-target-libgcc >"$LOG_DIR/gcc_stage1_all-target-libgcc.log" 2>&1; then
+    log "ERROR: GCC stage 1 all-target-libgcc build failed"
     exit 1
   fi
 
-  if ! make -j"$(get_nproc)" all-target-libgcc >"$LOG_DIR/gcc_all-target-libgcc.log" 2>&1; then
-    log "ERROR: GCC all-target-libgcc build failed"
+  if ! make install-gcc >"$LOG_DIR/gcc_stage1_install-gcc.log" 2>&1; then
+    log "ERROR: GCC stage 1 install-gcc failed"
     exit 1
   fi
 
-  if ! make install-target-libgcc >"$LOG_DIR/gcc_install-target-libgcc.log" 2>&1; then
-    log "ERROR: GCC install-target-libgcc failed"
-    exit 1
-  fi
-
-  if ! make -j"$(get_nproc)" all-target-libstdc++-v3 >"$LOG_DIR/gcc_all-target-libstdc++.log" 2>&1; then
-    log "ERROR: GCC all-target-libstdc++-v3 build failed"
-    exit 1
-  fi
-
-  if ! make install-target-libstdc++-v3 >"$LOG_DIR/gcc_install-target-libstdc++.log" 2>&1; then
-    log "ERROR: GCC install-target-libstdc++-v3 failed"
+  if ! make install-target-libgcc >"$LOG_DIR/gcc_stage1_install-target-libgcc.log" 2>&1; then
+    log "ERROR: GCC stage 1 install-target-libgcc failed"
     exit 1
   fi
 
   export PATH=$old_path
   touch "$mark_file"
-  log "GCC build complete."
+  log "GCC stage 1 build complete."
+}
+
+# 构建 GCC 第二阶段（完整版本）
+build_gcc_stage2() {
+  local mark_file=$BUILD_ROOT/.gcc_stage2_built_$GCC_VERSION
+  if [ -f "$mark_file" ]; then
+    log "GCC stage 2 already built, skipping."
+    return
+  fi
+
+  log "Building GCC stage 2..."
+  rm -rf "$BUILD_ROOT/gcc-build"
+  mkdir -p "$BUILD_ROOT/gcc-build"
+  cd "$BUILD_ROOT/gcc-build"
+
+  local old_path=$PATH
+  export PATH="$INSTALL_PREFIX/bin:$PATH"
+
+  if ! "$SRC_ROOT/gcc-$GCC_VERSION/configure" \
+    --prefix="$INSTALL_PREFIX" \
+    --target="$TARGET" \
+    --with-arch="$ARCH" \
+    --with-abi="$ABI" \
+    --disable-multilib \
+    --enable-threads=posix \
+    --enable-shared \
+    --enable-libssp \
+    --enable-libgomp \
+    --enable-languages=c,c++ \
+    --enable-poison-system-directories \
+    --enable-symvers=gnu \
+    --with-sysroot="$INSTALL_PREFIX/$TARGET/sysroot" \
+    --with-headers="$INSTALL_PREFIX/$TARGET/sysroot/usr/include" \
+    --with-build-sysroot="$INSTALL_PREFIX/$TARGET/sysroot" \
+    --with-gmp="$BUILD_ROOT/host-libs" \
+    --with-mpfr="$BUILD_ROOT/host-libs" \
+    --with-mpc="$BUILD_ROOT/host-libs" \
+    --with-isl="$BUILD_ROOT/host-libs" \
+    --with-gnu-as \
+    --with-gnu-ld \
+    >"$LOG_DIR/gcc_stage2_configure.log" 2>&1; then
+    log "ERROR: GCC stage 2 configure failed"
+    exit 1
+  fi
+
+  if ! make -j"$(get_nproc)" >"$LOG_DIR/gcc_stage2_make.log" 2>&1; then
+    log "ERROR: GCC stage 2 build failed"
+    exit 1
+  fi
+
+  if ! make install >"$LOG_DIR/gcc_stage2_install.log" 2>&1; then
+    log "ERROR: GCC stage 2 install failed"
+    exit 1
+  fi
+
+  export PATH=$old_path
+  touch "$mark_file"
+  log "GCC stage 2 build complete."
 }
 
 main() {
+  install_dependencies
+  
   download_and_extract "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.gz" "$SRC_ROOT/gcc-$GCC_VERSION"
   download_and_extract "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.gz" "$SRC_ROOT/binutils-$BINUTILS_VERSION"
   download_and_extract "https://musl.libc.org/releases/musl-$MUSL_VERSION.tar.gz" "$SRC_ROOT/musl-$MUSL_VERSION"
@@ -214,8 +384,10 @@ main() {
   download_and_extract "https://libisl.sourceforge.io/isl-$ISL_VERSION.tar.gz" "$SRC_ROOT/isl-$ISL_VERSION"
 
   build_binutils
+  build_gcc_deps
+  build_gcc_stage1
   build_musl
-  build_gcc
+  build_gcc_stage2
 
   log "Build complete. Toolchain installed at $INSTALL_PREFIX"
 }
