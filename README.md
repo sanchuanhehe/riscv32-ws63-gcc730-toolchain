@@ -31,6 +31,38 @@
 5. **musl libc**: C 标准库
 6. **GCC 第二阶段**: 完整编译器 (C/C++ 支持)
 
+## 已测试编译环境
+
+本项目已在以下环境中测试通过：
+
+### 主机环境
+- **操作系统**: Ubuntu 24.04.2 LTS x86_64
+- **内核版本**: 6.8.0-60-generic
+- **CPU**: Intel Xeon Platinum 8378C
+- **内存**: 22.9GB
+- **Shell**: bash 5.2.21
+
+### 构建工具版本
+- **GCC (Host)**: gcc (Ubuntu 13.2.0-23ubuntu4) 13.2.0
+- **Make**: GNU Make 4.3
+- **m4**: m4 (GNU M4) 1.4.19
+- **Binutils**: GNU binutils 2.42
+
+### 系统依赖
+- build-essential
+- m4
+- texinfo  
+- wget
+- tar
+- gzip/bzip2
+- libtool
+- libgmp-dev (用于 GDB 构建)
+
+### 磁盘空间要求
+- **最小要求**: 4GB 可用空间
+- **推荐**: 8GB+ 可用空间
+- **构建时间**: 约 10-15 分钟 (取决于 CPU 性能)
+
 ## 目录结构
 
 ```
@@ -72,9 +104,36 @@ gcc7.3/
 
 ## 使用方法
 
+### 构建工具链
 ```bash
 chmod +x build.sh
 ./build.sh
 ```
 
+### 使用工具链
 构建完成后，工具链将安装在 `build_riscv32/install/` 目录中。
+
+```bash
+# 设置环境变量
+export PATH="/root/gcc7.3/build_riscv32/install/bin:$PATH"
+
+# 编译 C 程序
+riscv32-linux-musl-gcc -march=rv32imfc -mabi=ilp32f -o hello hello.c
+
+# 查看生成的二进制文件信息
+file hello
+# 输出: hello: ELF 32-bit LSB executable, UCB RISC-V, RVC, single-float ABI, version 1 (SYSV), dynamically linked, interpreter /lib/ld-musl-riscv32-sp.so.1, not stripped
+
+# 使用 GDB 调试
+riscv32-linux-musl-gdb hello
+```
+
+### 工具链组件
+构建完成后可用的工具包括：
+- `riscv32-linux-musl-gcc` - C/C++ 编译器
+- `riscv32-linux-musl-gdb` - 调试器
+- `riscv32-linux-musl-as` - 汇编器
+- `riscv32-linux-musl-ld` - 链接器
+- `riscv32-linux-musl-objdump` - 反汇编器
+- `riscv32-linux-musl-strip` - 符号剥离器
+- 更多工具...
