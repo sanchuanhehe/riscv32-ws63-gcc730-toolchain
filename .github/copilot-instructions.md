@@ -1,13 +1,15 @@
-# GitHub Copilot Instructions for GCC 7.3.0 RISC-V Cross-Compiler Project
+# GitHub Copilot Instructions for RISC-V WS63 GCC 7.3.0 Cross-Compiler Project
 
 ## Project Overview
 
-This project builds a ### Current Status Tracking
+This project builds a GCC 7.3.0 cross-compilation toolchain targeting `riscv32-linux-musl` specifically for WS63 chip platform. The toolchain is designed for embedded RISC-V development with the following specifications:
 
-The project maintains its build state through:
-- Marker files indicating completed stages
-- Comprehensive logging with timestamps
-- Git-trackable configuration files in `.github/`
+- **Target**: `riscv32-linux-musl`
+- **Architecture**: `rv32imfc` (RV32I base + M/F/C extensions)
+- **ABI**: `ilp32f` (32-bit integers, longs, pointers; single-precision floats in FPU registers)
+- **C Library**: musl libc 1.2.5 (updated to support riscv32)
+- **Debugger**: GDB 12.1 (cross-debugging support)
+- **Build System**: Custom bash script with staged compilation and hybrid build strategy
 
 **Current Architecture Configuration (FIXED - DO NOT MODIFY):**
 - **Target**: `riscv32-linux-musl`
@@ -17,27 +19,22 @@ The project maintains its build state through:
 
 **Known Issues & Solutions:**
 - musl 1.2.5 setjmp/longjmp assembly uses double-precision FP instructions incompatible with rv32imfc
-- Solution: Manual patches to musl assembly files to use single-precision instructions
+- Solution: Hybrid build strategy - use prebuilt musl libraries when source compilation fails
 - Architecture and ABI settings are FIXED and must not be changed
 
-Use `.github/context.sh` to get current project status and build progress. GCC 7.3.0 cross-compilation toolchain targeting `riscv32-linux-musl`. The toolchain is designed for embedded RISC-V development with the following specifications:
-
-- **Target**: `riscv32-linux-musl`
-- **Architecture**: `rv32imfc` (RV32I base + M/F/C extensions)
-- **ABI**: `ilp32f` (32-bit integers, longs, pointers; single-precision floats in FPU registers)
-- **C Library**: musl libc 1.2.2
-- **Build System**: Custom bash script with staged compilation
+Use `.github/context.sh` to get current project status and build progress.
 
 ## Architecture & Build Process
 
 ### Build Stages (Critical Order)
 
-1. **System Dependencies**: Install required build tools (m4, texinfo, etc.)
+1. **System Dependencies**: Install required build tools (m4, texinfo, libgmp-dev, etc.)
 2. **Binutils 2.30**: Cross-assembler and linker
 3. **GCC Dependencies**: GMP, MPFR, MPC, ISL (built as static host libraries)
 4. **GCC Stage 1**: Bare-metal compiler (C only, no libc headers)
-5. **musl C Library**: Built using Stage 1 GCC
+5. **musl C Library**: Built using Stage 1 GCC (with fallback to prebuilt libraries)
 6. **GCC Stage 2**: Full compiler (C/C++, with libc support)
+7. **GDB 12.1**: Cross-debugger for target debugging
 
 ### Key Technical Details
 
@@ -98,10 +95,18 @@ Use `.github/context.sh` to get current project status and build progress. GCC 7
 ## Environment Configuration
 
 ### Required Environment
-- Linux host system (tested on Ubuntu/Debian)
+- Linux host system (tested on Ubuntu 24.04.2 LTS)
 - Internet connectivity for source downloads
 - Minimum 4GB free disk space
 - 4+ CPU cores recommended for parallel builds
+
+### Tested Build Environment
+- **OS**: Ubuntu 24.04.2 LTS x86_64
+- **Kernel**: 6.8.0-60-generic  
+- **CPU**: Intel Xeon Platinum 8378C
+- **Memory**: 22.9GB
+- **Host GCC**: 13.3.0
+- **Shell**: bash 5.2.21
 
 ### Build Variables
 ```bash
@@ -110,7 +115,8 @@ ARCH=rv32imfc
 ABI=ilp32f
 GCC_VERSION=7.3.0
 BINUTILS_VERSION=2.30
-MUSL_VERSION=1.2.2
+MUSL_VERSION=1.2.5
+GDB_VERSION=12.1
 ```
 
 ## Integration with GitHub Copilot
@@ -130,9 +136,11 @@ MUSL_VERSION=1.2.2
 ### Common Tasks to Assist With
 - Adding new source packages to the build
 - Improving error handling and logging
-- Optimizing build parallelization
-- Adding validation steps
-- Extending the toolchain (debugger, profiling tools, etc.)
+- Optimizing build parallelization with hybrid build strategy
+- Adding validation steps for WS63 compatibility
+- Extending the toolchain (GDB features, profiling tools, etc.)
+- Troubleshooting musl compatibility issues
+- Managing prebuilt toolchain fallback mechanisms
 
 ## Current Status Tracking
 
@@ -145,20 +153,21 @@ Use `.github/context.sh` to get current project status and build progress.
 
 ## Version Compatibility Notes
 
-- **GCC 7.3.0**: Specific version for compatibility with legacy embedded projects
-- **musl 1.2.2**: Modern, lightweight C library suitable for embedded systems
+- **GCC 7.3.0**: Specific version for compatibility with WS63 embedded projects
+- **musl 1.2.5**: Updated version with riscv32 support (uses prebuilt when source fails)
 - **Binutils 2.30**: Compatible with GCC 7.3.0 and RISC-V target
+- **GDB 12.1**: Cross-debugging support for WS63 development
 - **RISC-V ISA**: RV32I base instruction set with M/F/C standard extensions
 
 ## Future Enhancements
 
 Potential areas for development:
-- GDB integration for cross-debugging
-- Newlib alternative to musl
+- Enhanced GDB integration and debugging features
+- QEMU integration for WS63 emulation and testing
 - Additional RISC-V extensions (Vector, Atomic, etc.)
-- QEMU integration for testing
-- CMake/pkg-config integration
-- Docker containerization
+- CMake/pkg-config integration for easier project setup
+- Docker containerization for reproducible builds
+- CI/CD pipeline integration
 
 ---
 
