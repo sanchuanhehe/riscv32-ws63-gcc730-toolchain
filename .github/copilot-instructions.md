@@ -2,7 +2,25 @@
 
 ## Project Overview
 
-This project builds a complete GCC 7.3.0 cross-compilation toolchain targeting `riscv32-linux-musl`. The toolchain is designed for embedded RISC-V development with the following specifications:
+This project builds a ### Current Status Tracking
+
+The project maintains its build state through:
+- Marker files indicating completed stages
+- Comprehensive logging with timestamps
+- Git-trackable configuration files in `.github/`
+
+**Current Architecture Configuration (FIXED - DO NOT MODIFY):**
+- **Target**: `riscv32-linux-musl`
+- **Architecture**: `rv32imfc` (RV32I + M/F/C extensions)
+- **ABI**: `ilp32f` (32-bit integers, longs, pointers; single-precision floats in FPU registers)
+- **C Library**: musl libc 1.2.5 (updated to support riscv32)
+
+**Known Issues & Solutions:**
+- musl 1.2.5 setjmp/longjmp assembly uses double-precision FP instructions incompatible with rv32imfc
+- Solution: Manual patches to musl assembly files to use single-precision instructions
+- Architecture and ABI settings are FIXED and must not be changed
+
+Use `.github/context.sh` to get current project status and build progress. GCC 7.3.0 cross-compilation toolchain targeting `riscv32-linux-musl`. The toolchain is designed for embedded RISC-V development with the following specifications:
 
 - **Target**: `riscv32-linux-musl`
 - **Architecture**: `rv32imfc` (RV32I base + M/F/C extensions)
